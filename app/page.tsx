@@ -17,6 +17,7 @@ export default function Dashboard() {
   const [allEntries, setAllEntries] = useState<Entry[]>([])
   const [reflection, setReflection] = useState('')
   const [saving, setSaving] = useState(false)
+  const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
     fetch('/api/entries')
@@ -28,10 +29,14 @@ export default function Dashboard() {
           setEntry(today)
           setReflection(today.reflection ?? '')
         }
+        setLoaded(true)
       })
   }, [])
 
   const streak = calcStreak(allEntries)
+  const completion = allEntries.length
+    ? Math.round((allEntries.filter(e => e.relDone && e.workDone).length / allEntries.length) * 100)
+    : 0
 
   async function toggle(field: 'relDone' | 'workDone') {
     const updated = {
@@ -73,74 +78,117 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 pb-10">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Сегодня</h1>
-          <p className="text-zinc-500 text-sm mt-1">
-            {new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}
-          </p>
+          <div className="text-[10px] tracking-[0.3em] text-cyan-500/50 mb-1">// MISSION BRIEF</div>
+          <h1 className="text-2xl font-bold glow-text tracking-wider">
+            {new Date().toLocaleDateString('ru-RU', { weekday: 'long' }).toUpperCase()}
+          </h1>
+          <div className="text-xs text-cyan-500/40 tracking-widest mt-1">
+            {new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+          </div>
         </div>
-        <div className="text-center">
-          <div className="text-3xl font-bold text-green-400">{streak}</div>
-          <div className="text-xs text-zinc-500">дней подряд</div>
+
+        {/* Streak ring */}
+        <div className="relative flex items-center justify-center">
+          <svg className="w-20 h-20 -rotate-90" viewBox="0 0 80 80">
+            <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(0,212,255,0.1)" strokeWidth="4"/>
+            <circle
+              cx="40" cy="40" r="32" fill="none"
+              stroke="#00d4ff" strokeWidth="4"
+              strokeLinecap="round"
+              strokeDasharray={`${Math.min(streak * 10, 201)} 201`}
+              style={{ filter: 'drop-shadow(0 0 6px #00d4ff)' }}
+            />
+          </svg>
+          <div className="absolute text-center">
+            <div className="text-xl font-bold glow-text leading-none">{streak}</div>
+            <div className="text-[8px] text-cyan-500/50 tracking-widest">DAYS</div>
+          </div>
         </div>
       </div>
 
-      {/* Week badge */}
-      <div className="inline-block bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2 text-sm text-zinc-400">
-        Неделя 1 — <span className="text-zinc-200">Базовые практики</span>
+      {/* Stats row */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: 'TOTAL', value: allEntries.length },
+          { label: 'RATE %', value: `${completion}%` },
+          { label: 'WEEK', value: 1 },
+        ].map(({ label, value }) => (
+          <div key={label} className="hud-card p-3 text-center hex-border">
+            <div className="text-lg font-bold glow-text">{loaded ? value : '—'}</div>
+            <div className="text-[9px] tracking-[0.2em] text-cyan-500/40 mt-1">{label}</div>
+          </div>
+        ))}
       </div>
 
       {/* Practice cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <PracticeCard
-          track="Отношения"
-          task="Пауза 3 секунды перед ответом в конфликте"
-          principle="Ты контролируешь только свою реакцию"
-          done={entry?.relDone ?? false}
-          onToggle={() => toggle('relDone')}
-        />
-        <PracticeCard
-          track="Работа"
-          task="Утром — одна задача которую реально контролируешь"
-          principle="Obstacle is the way"
-          done={entry?.workDone ?? false}
-          onToggle={() => toggle('workDone')}
-        />
+      <div>
+        <div className="text-[10px] tracking-[0.3em] text-cyan-500/50 mb-3">// ACTIVE PROTOCOLS</div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <HUDCard
+            label="PROTOCOL.01 // RELATIONS"
+            task="Пауза 3 секунды перед ответом в конфликте"
+            principle="You control only your reaction"
+            done={entry?.relDone ?? false}
+            onToggle={() => toggle('relDone')}
+          />
+          <HUDCard
+            label="PROTOCOL.02 // WORK"
+            task="Утром — одна задача которую реально контролируешь"
+            principle="Obstacle is the way"
+            done={entry?.workDone ?? false}
+            onToggle={() => toggle('workDone')}
+          />
+        </div>
       </div>
 
-      {/* Reflection */}
-      <div className="space-y-3">
-        <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">Вечерняя рефлексия</h2>
-        <textarea
-          value={reflection}
-          onChange={e => setReflection(e.target.value)}
-          placeholder="Одна ситуация дня — что было не в твоей власти? Что ты сделал?"
-          className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-4 text-sm text-zinc-100 placeholder-zinc-600 resize-none focus:outline-none focus:border-green-500 transition-colors"
-          rows={4}
-        />
-        <button
-          onClick={saveReflection}
-          disabled={saving || !reflection.trim()}
-          className="bg-green-600 hover:bg-green-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-        >
-          {saving ? 'Сохраняю...' : 'Сохранить'}
-        </button>
+      {/* Reflection input */}
+      <div>
+        <div className="text-[10px] tracking-[0.3em] text-cyan-500/50 mb-3">// EVENING DEBRIEF</div>
+        <div className="hud-card p-4 space-y-3">
+          <textarea
+            value={reflection}
+            onChange={e => setReflection(e.target.value)}
+            placeholder="INPUT: что было не в твоей власти? что ты сделал?"
+            className="w-full bg-transparent border border-cyan-500/20 p-3 text-sm text-cyan-300/80 placeholder-cyan-500/20 resize-none focus:outline-none focus:border-cyan-500/60 transition-colors font-mono tracking-wide"
+            rows={4}
+          />
+          <div className="flex items-center justify-between">
+            <span className="text-[9px] text-cyan-500/30 tracking-widest">
+              {reflection.length} CHARS
+            </span>
+            <button
+              onClick={saveReflection}
+              disabled={saving || !reflection.trim()}
+              className="px-4 py-2 text-[10px] tracking-[0.2em] font-bold border border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10 hover:border-cyan-400 disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+            >
+              {saving ? 'UPLOADING...' : '[ UPLOAD LOG ]'}
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Recent reflections */}
-      {allEntries.filter(e => e.reflection).slice(0, 3).length > 0 && (
-        <div className="space-y-3">
-          <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">Последние записи</h2>
+      {/* Recent logs */}
+      {allEntries.filter(e => e.reflection).length > 0 && (
+        <div>
+          <div className="text-[10px] tracking-[0.3em] text-cyan-500/50 mb-3">// RECENT LOGS</div>
           <div className="space-y-2">
-            {allEntries.filter(e => e.reflection).slice(0, 3).map(e => (
-              <div key={e.id} className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-                <p className="text-xs text-zinc-500 mb-1">
-                  {new Date(e.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
-                </p>
-                <p className="text-sm text-zinc-300">{e.reflection}</p>
+            {allEntries.filter(e => e.reflection).slice(0, 3).map((e, i) => (
+              <div key={e.id} className="hud-card p-4 data-entry" style={{ animationDelay: `${i * 0.1}s` }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-1 h-1 rounded-full bg-cyan-500" style={{ boxShadow: '0 0 4px #00d4ff' }} />
+                  <span className="text-[9px] text-cyan-500/40 tracking-widest">
+                    {new Date(e.date).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}
+                  </span>
+                  <div className="flex gap-1 ml-auto">
+                    {e.relDone && <span className="text-[8px] text-cyan-400/60 border border-cyan-500/20 px-1">REL</span>}
+                    {e.workDone && <span className="text-[8px] text-cyan-400/60 border border-cyan-500/20 px-1">WRK</span>}
+                  </div>
+                </div>
+                <p className="text-xs text-cyan-300/60 font-mono leading-relaxed">{e.reflection}</p>
               </div>
             ))}
           </div>
@@ -150,10 +198,10 @@ export default function Dashboard() {
   )
 }
 
-function PracticeCard({
-  track, task, principle, done, onToggle,
+function HUDCard({
+  label, task, principle, done, onToggle,
 }: {
-  track: string
+  label: string
   task: string
   principle: string
   done: boolean
@@ -161,27 +209,30 @@ function PracticeCard({
 }) {
   return (
     <div
-      className={`border rounded-xl p-5 cursor-pointer transition-all ${
-        done
-          ? 'bg-green-950 border-green-700'
-          : 'bg-zinc-900 border-zinc-800 hover:border-zinc-600'
-      }`}
       onClick={onToggle}
+      className={`hud-card p-5 cursor-pointer transition-all duration-300 ${
+        done ? 'border-cyan-400/60 bg-cyan-500/5' : 'hover:border-cyan-500/40'
+      }`}
+      style={done ? { boxShadow: '0 0 20px rgba(0,212,255,0.15), inset 0 0 20px rgba(0,212,255,0.05)' } : {}}
     >
       <div className="flex items-center justify-between mb-3">
-        <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">{track}</span>
-        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
-          done ? 'bg-green-500 border-green-500' : 'border-zinc-600'
-        }`}>
+        <span className="text-[9px] tracking-[0.2em] text-cyan-500/40">{label}</span>
+        <div className={`w-5 h-5 border flex items-center justify-center transition-all ${
+          done ? 'border-cyan-400 bg-cyan-500/20' : 'border-cyan-500/30'
+        }`}
+          style={done ? { boxShadow: '0 0 8px rgba(0,212,255,0.5)' } : {}}
+        >
           {done && (
-            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+            <svg className="w-3 h-3 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
           )}
         </div>
       </div>
-      <p className="text-sm font-medium text-zinc-100 mb-2">{task}</p>
-      <p className="text-xs text-zinc-500 italic">&ldquo;{principle}&rdquo;</p>
+      <p className="text-sm font-medium text-cyan-100/80 mb-3 leading-relaxed">{task}</p>
+      <div className="border-t border-cyan-500/10 pt-2">
+        <p className="text-[10px] text-cyan-500/40 font-mono italic">&ldquo;{principle}&rdquo;</p>
+      </div>
     </div>
   )
 }
@@ -192,16 +243,12 @@ function calcStreak(entries: Entry[]): number {
   const sorted = [...entries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
   let cursor = new Date()
   cursor.setHours(0, 0, 0, 0)
-
   for (const entry of sorted) {
-    const entryDate = new Date(entry.date)
-    entryDate.setHours(0, 0, 0, 0)
-    const diff = Math.round((cursor.getTime() - entryDate.getTime()) / 86400000)
+    const d = new Date(entry.date)
+    d.setHours(0, 0, 0, 0)
+    const diff = Math.round((cursor.getTime() - d.getTime()) / 86400000)
     if (diff > 1) break
-    if (entry.relDone || entry.workDone) {
-      streak++
-      cursor = entryDate
-    }
+    if (entry.relDone || entry.workDone) { streak++; cursor = d }
   }
   return streak
 }
